@@ -13,6 +13,15 @@ JOB_RUNNING_TIME = {
     "root.apply_bqsr": timedelta(seconds=1)
 }
 
+JOB_RUNNING_TIME_NF = {
+    "AlignReads": timedelta(seconds=1),
+    "ConvertSAMtoBAM": timedelta(seconds=1),
+    "SortBAM": timedelta(seconds=1),
+    "MarkDuplicates": timedelta(seconds=1),
+    "CreateRecalibrationTable": timedelta(seconds=1),
+    "RecalibrateBam": timedelta(seconds=1)
+}
+
 completed = []
 
 jobs = {}
@@ -76,7 +85,7 @@ class Worker(threading.Thread):
             time.sleep(1)
             for task in self.tasks_db:
                 if task.status == "RUNNING":
-                    if datetime.now() - task.started > JOB_RUNNING_TIME[task.name]:
+                    if datetime.now() - task.started > JOB_RUNNING_TIME_NF[task.name]:
                         print("Job SUCCEEDED: %s %s" % (task.job_name, task.name))
                         task.completed = datetime.now()
                         task.status = "SUCCEEDED"

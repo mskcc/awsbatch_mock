@@ -27,7 +27,8 @@ DEBUG = True
 
 ALLOWED_HOSTS = [
     "cromwell-wf-results.localhost",
-    # "sinisa.localhost",
+    "cromwell-wf-results.s3.amazonaws.com",
+    "testbucketcmo.localhost",
     "localhost"
 
 ]

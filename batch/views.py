@@ -1,7 +1,13 @@
 import json
+import uuid
 import manage
-from django.http import JsonResponse
+from django.http import JsonResponse, HttpResponse
 import batch.mock_executor.mock_executor as mock_executor
+from django.core import serializers
+
+
+job_definitions = []
+
 
 # Create your views here.
 def upload_s3(request, root_id, job_name, file_name):
@@ -9,6 +15,13 @@ def upload_s3(request, root_id, job_name, file_name):
         return JsonResponse({})
     elif request.method == 'GET':
         return download_s3(job_name)
+
+
+def download_s3_nf(request, root_dir, job_name, job_id, file_name):
+    if file_name == ".exitcode":
+        return JsonResponse(0)
+
+    pass
 
 
 def download_s3(request, root_id, job_name, job_id, file_name):
@@ -152,15 +165,68 @@ def download_s3(request, root_id, job_name, job_id, file_name):
 
 
 def submit_job(request):
-    return JsonResponse({})
+    body = json.loads(request.body)
+    job_id = "/".join(body['containerOverrides']["command"][4].split("s3://cromwell-wf-results/test/")[1].split('/')[0:2])
+    result = {
+        "jobId": job_id,
+        "jobName": body['jobName']
+    }
+    manage.job_service.start_job(job_id, body['jobName'].split('_')[0])
+    return JsonResponse(result)
 
 
 def register_job_definition(request):
     body = json.loads(request.body)
     job_name = body['jobDefinitionName']
     name = body['containerProperties']['command'][8].split('/')[-1]
-    manage.job_service.start_job(job_name, name)
     return JsonResponse({})
+
+
+def register_job_definition_nf(request):
+    body = json.loads(request.body)
+    job_name = body['jobDefinitionName']
+    res = {
+        "jobDefinitionArn": job_name,
+        "jobDefinitionName": job_name,
+        "revision": 1
+    }
+    job_definitions.append(body)
+    return JsonResponse(res)
+
+
+def describe_jobs(request):
+    body = json.loads(request.body)
+    result = {'jobs': [] }
+    for i in body['jobs']:
+        for job in mock_executor.completed:
+            if i == job.job_name:
+                completed = True
+                result['jobs'].append({'status': 'SUCCEEDED', 'jobId': i})
+                break
+        if not completed:
+            result['jobs'].append({'status': 'RUNNING', 'jobId': i})
+
+    return JsonResponse(result)
+
+
+def describe_job_definition(request):
+    body = json.loads(request.body)
+    job_name = body['jobDefinitionName']
+    response = {
+                    "jobDefinitions": [
+                          {
+                             "containerProperties": {
+
+                                 "jobDefinitionArn": job_name,
+                                 "jobDefinitionName": job_name,
+
+                             }
+                          }
+                       ],
+                       "nextToken": "string"
+                    }
+    # manage.job_service.start_job(job_name, name)
+    return JsonResponse(response)
 
 
 def list_jobs(request):
@@ -172,3 +238,80 @@ def list_jobs(request):
         return JsonResponse({"jobSummaryList": result}, content_type="application/json")
     else:
         return JsonResponse({"jobSummaryList": []}, content_type="application/json")
+
+
+def terminate_job(request):
+    return JsonResponse({}, content_type="application/json")
+
+
+def return_200(request):
+    return JsonResponse({}, content_type="application/json")
+
+
+
+result_S10_L004_R1_001 = """<?xml version="1.0" encoding="UTF-8"?>
+<ListBucketResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/"><Name>testbucketcmo</Name><Prefix>wes_samples/Sample_BRCA-00067-N_IGO_06208_30/BRCA-00067-N_IGO_06208_30_S10_L004_R1_001.fastq.gz</Prefix><Marker></Marker><MaxKeys>250</MaxKeys><EncodingType>url</EncodingType><IsTruncated>false</IsTruncated><Contents><Key>wes_samples/Sample_BRCA-00067-N_IGO_06208_30/BRCA-00067-N_IGO_06208_30_S10_L004_R1_001.fastq.gz</Key><LastModified>2019-01-18T18:54:46.000Z</LastModified><ETag>&quot;d68ab95e2be65dcbbfe22039c6945aa9-294&quot;</ETag><Size>2465271488</Size><Owner><ID>e49a0eeeeb5b63c45f828801983863637f607402e07c7c899e418ddbdcfcdea8</ID><DisplayName>aws_CMO_collab</DisplayName></Owner><StorageClass>STANDARD</StorageClass></Contents></ListBucketResult>"""
+
+result_S10_L004_R2_001 = """<?xml version="1.0" encoding="UTF-8"?>
+<ListBucketResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/"><Name>testbucketcmo</Name><Prefix>wes_samples/Sample_BRCA-00067-N_IGO_06208_30/BRCA-00067-N_IGO_06208_30_S10_L004_R2_001.fastq.gz</Prefix><Marker></Marker><MaxKeys>250</MaxKeys><EncodingType>url</EncodingType><IsTruncated>false</IsTruncated><Contents><Key>wes_samples/Sample_BRCA-00067-N_IGO_06208_30/BRCA-00067-N_IGO_06208_30_S10_L004_R2_001.fastq.gz</Key><LastModified>2019-01-18T18:54:46.000Z</LastModified><ETag>&quot;d68ab95e2be65dcbbfe22039c6945aa9-294&quot;</ETag><Size>2465271488</Size><Owner><ID>e49a0eeeeb5b63c45f828801983863637f607402e07c7c899e418ddbdcfcdea8</ID><DisplayName>aws_CMO_collab</DisplayName></Owner><StorageClass>STANDARD</StorageClass></Contents></ListBucketResult>"""
+
+result_S25_L006_R1_001 = """<?xml version="1.0" encoding="UTF-8"?>
+<ListBucketResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/"><Name>testbucketcmo</Name><Prefix>wes_samples/Sample_BRCA-00067-T_IGO_06208_1/BRCA-00067-T_IGO_06208_1_S25_L006_R1_001.fastq.gz</Prefix><Marker></Marker><MaxKeys>250</MaxKeys><EncodingType>url</EncodingType><IsTruncated>false</IsTruncated><Contents><Key>wes_samples/Sample_BRCA-00067-T_IGO_06208_1/BRCA-00067-T_IGO_06208_1_S25_L006_R1_001.fastq.gz</Key><LastModified>2019-01-18T18:54:46.000Z</LastModified><ETag>&quot;d68ab95e2be65dcbbfe22039c6945aa9-294&quot;</ETag><Size>2465271488</Size><Owner><ID>e49a0eeeeb5b63c45f828801983863637f607402e07c7c899e418ddbdcfcdea8</ID><DisplayName>aws_CMO_collab</DisplayName></Owner><StorageClass>STANDARD</StorageClass></Contents></ListBucketResult>"""
+
+result_S25_L006_R2_001 = """<?xml version="1.0" encoding="UTF-8"?>
+<ListBucketResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/"><Name>testbucketcmo</Name><Prefix>wes_samples/Sample_BRCA-00067-T_IGO_06208_1/BRCA-00067-T_IGO_06208_1_S25_L006_R2_001.fastq.gz</Prefix><Marker></Marker><MaxKeys>250</MaxKeys><EncodingType>url</EncodingType><IsTruncated>false</IsTruncated><Contents><Key>wes_samples/Sample_BRCA-00067-T_IGO_06208_1/BRCA-00067-T_IGO_06208_1_S25_L006_R2_001.fastq.gz</Key><LastModified>2019-01-18T18:54:46.000Z</LastModified><ETag>&quot;d68ab95e2be65dcbbfe22039c6945aa9-294&quot;</ETag><Size>2465271488</Size><Owner><ID>e49a0eeeeb5b63c45f828801983863637f607402e07c7c899e418ddbdcfcdea8</ID><DisplayName>aws_CMO_collab</DisplayName></Owner><StorageClass>STANDARD</StorageClass></Contents></ListBucketResult>"""
+
+result_b37_fasta = """<?xml version="1.0" encoding="UTF-8"?>
+<ListBucketResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/"><Name>testbucketcmo</Name><Prefix>References/grch37/b37.fasta</Prefix><Marker></Marker><MaxKeys>250</MaxKeys><EncodingType>url</EncodingType><IsTruncated>false</IsTruncated><Contents><Key>References/grch37/b37.fasta</Key><LastModified>2019-01-18T18:54:46.000Z</LastModified><ETag>&quot;d68ab95e2be65dcbbfe22039c6945aa9-294&quot;</ETag><Size>2465271488</Size><Owner><ID>e49a0eeeeb5b63c45f828801983863637f607402e07c7c899e418ddbdcfcdea8</ID><DisplayName>aws_CMO_collab</DisplayName></Owner><StorageClass>STANDARD</StorageClass></Contents></ListBucketResult>"""
+
+exist_result ="""<?xml version="1.0" encoding="UTF-8"?>
+<ListBucketResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/"><Name>testbucketcmo</Name><Prefix>%s</Prefix><Marker></Marker><MaxKeys>250</MaxKeys><EncodingType>url</EncodingType><IsTruncated>false</IsTruncated><Contents><Key>%s</Key><LastModified>2019-01-18T18:54:46.000Z</LastModified><ETag>&quot;d68ab95e2be65dcbbfe22039c6945aa9-294&quot;</ETag><Size>2465271488</Size><Owner><ID>e49a0eeeeb5b63c45f828801983863637f607402e07c7c899e418ddbdcfcdea8</ID><DisplayName>aws_CMO_collab</DisplayName></Owner><StorageClass>STANDARD</StorageClass></Contents></ListBucketResult>"""
+
+empty = """<?xml version="1.0" encoding="UTF-8"?>
+<ListBucketResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/"><Name>cromwell-wf-results</Name><Prefix>test/37/cbd61b4b52e5b489ad370eb9946699</Prefix><Marker></Marker><MaxKeys>250</MaxKeys><EncodingType>url</EncodingType><IsTruncated>false</IsTruncated></ListBucketResult>
+"""
+
+result_acl = """<?xml version="1.0" encoding="UTF-8"?>
+<AccessControlPolicy>
+  <Owner>
+    <ID>75aa57f09aa0c8caeab4f8c24e99d10f8e7faeebf76c078efc7c6caea54ba06a</ID>
+    <DisplayName>mtd@amazon.com</DisplayName>
+  </Owner>
+  <AccessControlList>
+    <Grant>
+      <Grantee xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:type="CanonicalUser">
+        <ID>75aa57f09aa0c8caeab4f8c24e99d10f8e7faeebf76c078efc7c6caea54ba06a</ID>
+        <DisplayName>mtd@amazon.com</DisplayName>
+      </Grantee>
+      <Permission>FULL_CONTROL</Permission>
+    </Grant>
+  </AccessControlList>
+</AccessControlPolicy>
+"""
+
+
+def return_xml(request):
+    prefix = request.GET.get('prefix')
+    if prefix.endswith(".sam") or prefix.endswith('.bam') or prefix.endswith('.fastq.gz') or prefix.endswith('.fasta') \
+            or prefix.endswith('.bai') or prefix.endswith('.metrics') or prefix.endswith('.table') \
+            or prefix.endswith('.fai') or prefix.endswith('.fai') or prefix.endswith('.dict') or prefix.endswith('.list') \
+            or prefix.endswith('.idx') or prefix.endswith('.vcf') or prefix.endswith('.'):
+        return HttpResponse(exist_result % (prefix, prefix), content_type="application/xml")
+    else:
+        return HttpResponse(empty, content_type="application/xml")
+
+def acl(request, dir, name):
+    return HttpResponse(result_acl, content_type="application/xml")
+
+
+def put_directory(request, dir, job_id):
+    return JsonResponse({}, content_type="application/json")
+
+
+def put_file(request, dir, job_id, file_name):
+    if request.method == 'GET':
+        if file_name == '.exitcode':
+            return HttpResponse(0)
+        if 'acl' in request.GET:
+            return HttpResponse(result_acl, content_type="application/xml")
+    return JsonResponse({}, content_type="application/json")
